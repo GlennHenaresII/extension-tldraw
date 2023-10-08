@@ -1,175 +1,131 @@
-// TLDraw EXT extension
+class TLDrawInstance {
+  constructor(
+    public windowObject: ext.windows.Window | null,
+    public tabObject: ext.tabs.Tab | null,
+    public webviewObject: ext.webviews.Webview | null,
+    public isCreated: boolean
+  ) { }
+}
 
 // Global resources
-let created = false
-let tab: ext.tabs.Tab | null = null
-let window: ext.windows.Window | null = null
-let webview: ext.webviews.Webview | null = null
+let windowsCount = 0;
+let TLDrawInstances: TLDrawInstance[] = [];
+let websession: ext.websessions.Websession | null = null;
 
-// Extension clicked
+// Click extension
 ext.runtime.onExtensionClick.addListener(async () => {
   try {
+    let foundIndex = -1;
 
-    // Check if window already exists
-    if (created && window !== null && webview !== null) {
-      await ext.windows.restore(window.id)
-      await ext.windows.focus(window.id)
-      await ext.webviews.focus(webview.id)
-      return
+    if (TLDrawInstances.some((props, index) => {
+      if (!props.isCreated) {
+        foundIndex = index;
+        return true;
+      }
+      return false;
+    })) {
+      // Reuse empty slot
+      windowsCount = foundIndex + 1;
+    } else {
+      // Increment when no empty slot
+      windowsCount++;
     }
 
-    // Create tab
-    tab = await ext.tabs.create({
-      icon: 'icons/icon-128.png',
-      text: 'CHOCH',
-      muted: false,
-      mutable: true,
-      closable: true,
-    })
-
     // Create window
-    window = await ext.windows.create({
-      title: 'CHOCH',
+    const window = await ext.windows.create({
+      title: `TLDraw #${windowsCount}`,
       icon: 'icons/icon-128.png',
       fullscreenable: true,
       vibrancy: false,
       frame: true,
-      minWidth: 650,
-      minHeight: 460,
-      aspectRatio: 650 / 460
-    })
+    });
 
-    // Create webview
-    webview = await ext.webviews.create()
-    const size = await ext.windows.getContentSize(window.id)
-    await ext.webviews.loadFile(webview.id, 'index.html')
-    await ext.webviews.attach(webview.id, window.id)
-    await ext.webviews.setBounds(webview.id, { x: 0, y: 0, width: size.width, height: size.height })
-    await ext.webviews.setAutoResize(webview.id, { width: true, height: true })
-    await ext.webviews.focus(webview.id)
+    // Create tab
+    const tab = await ext.tabs.create({
+      icon: 'icons/icon-128.png',
+      text: `TLDraw #${windowsCount}`,
+      muted: true,
+      mutable: false,
+      closable: true,
+    });
 
-    // Mark window as created
-    created = true
+    // Create websession
+    const websession = await ext.websessions.create({
+      partition: `TLDraw ${windowsCount}`,
+      persistent: true,
+      cache: true,
+      global: false,
+    });
 
-  } catch (error) {
+    const size = await ext.windows.getContentSize(window.id);
 
-    // Print error
-    console.error('ext.runtime.onExtensionClick', JSON.stringify(error))
+    const webview = await ext.webviews.create({
+      websession: websession,
+    });
 
-  }
-})
+    await ext.webviews.loadFile(webview.id, 'index.html');
+    await ext.webviews.attach(webview.id, window.id);
+    await ext.webviews.setBounds(webview.id, { x: 0, y: 0, width: size.width, height: size.height });
+    await ext.webviews.setAutoResize(webview.id, { width: true, height: true });
 
-// Tab was removed by another extension
-ext.tabs.onRemoved.addListener(async (event) => {
-  try {
-
-    // Remove objects
-    if (event.id === tab?.id) {
-      if (window !== null) await ext.windows.remove(window.id)
-      if (webview !== null) await ext.webviews.remove(webview.id)
-      tab = window = webview = null
+    // Update or add instance to the array
+    if (foundIndex !== -1) {
+      TLDrawInstances[foundIndex] = new TLDrawInstance(window, tab, webview, true);
+    } else {
+      TLDrawInstances.push(new TLDrawInstance(window, tab, webview, true));
     }
-
   } catch (error) {
-
-    // Print error
-    console.error('ext.tabs.onRemoved', JSON.stringify(error))
-
+    console.error('ext.runtime.onExtensionClick', JSON.stringify(error));
   }
-})
+});
 
-// Tab was clicked
+// Click tab
 ext.tabs.onClicked.addListener(async (event) => {
   try {
-
-    // Restore & Focus window
-    if (event.id === tab?.id && window !== null && webview !== null) {
-      await ext.windows.restore(window.id)
-      await ext.windows.focus(window.id)
-      await ext.webviews.focus(webview.id)
-    }
-
+    TLDrawInstances.forEach(async (props) => {
+      if (props.tabObject && props.tabObject.id === event.id) {
+        await ext.windows.restore(props.windowObject!.id);
+        await ext.windows.focus(props.windowObject!.id);
+      }
+    });
   } catch (error) {
-
-    // Print error
-    console.error('ext.tabs.onClicked', JSON.stringify(error))
-
+    console.error('ext.tabs.onClicked', JSON.stringify(error));
   }
-})
+});
 
-// Tab was closed
+// Close tab
 ext.tabs.onClickedClose.addListener(async (event) => {
   try {
-
-    // Remove objects
-    if (event.id === tab?.id) {
-      if (tab !== null) await ext.tabs.remove(tab.id)
-      if (window !== null) await ext.windows.remove(window.id)
-      if (webview !== null) await ext.webviews.remove(webview.id)
-      tab = window = webview = null
-    }
-
+    TLDrawInstances.forEach(async (props) => {
+      if (props.tabObject && props.tabObject.id === event.id) {
+        await ext.tabs.remove(props.tabObject.id);
+        await ext.windows.remove(props.windowObject!.id);
+        await ext.webviews.remove(props.webviewObject!.id);
+        props.tabObject = null;
+        props.windowObject = null;
+        props.webviewObject = null;
+        props.isCreated = false;
+      }
+    });
   } catch (error) {
-
-    // Print error
-    console.error('ext.tabs.onClickedClose', JSON.stringify(error))
-
+    console.error('ext.tabs.onClickedClose', JSON.stringify(error));
   }
-})
+});
 
-// Tab was muted
-ext.tabs.onClickedMute.addListener(async (event) => {
-  try {
-
-    // Update audio
-    if (event.id === tab?.id && tab !== null && webview !== null) {
-      const muted = await ext.webviews.isAudioMuted(webview.id)
-      await ext.webviews.setAudioMuted(webview.id, !muted)
-      await ext.tabs?.update(tab.id, { muted: !muted })
-    }
-
-  } catch (error) {
-
-    // Print error
-    console.error('ext.tabs.onClickedMute', JSON.stringify(error))
-
-  }
-})
-
-// Window was removed by another extension
-ext.windows.onRemoved.addListener(async (event) => {
-  try {
-
-    // Remove objects
-    if (event.id === window?.id) {
-      if (tab !== null) await ext.tabs.remove(tab.id)
-      if (webview !== null) await ext.webviews.remove(webview.id)
-      tab = window = webview = null
-    }
-
-  } catch (error) {
-
-    // Print error
-    console.error('ext.windows.onRemoved', JSON.stringify(error))
-
-  }
-})
-
-// Window was closed
+// Close window
 ext.windows.onClosed.addListener(async (event) => {
   try {
-
-    // Remove objects
-    if (event.id === window?.id) {
-      if (tab !== null) await ext.tabs.remove(tab.id)
-      if (webview !== null) await ext.webviews.remove(webview.id)
-      tab = window = webview = null
-    }
-
+    TLDrawInstances.forEach(async (props) => {
+      if (props.windowObject && props.windowObject.id === event.id) {
+        await ext.tabs.remove(props.tabObject!.id);
+        await ext.webviews.remove(props.webviewObject!.id);
+        props.tabObject = null;
+        props.windowObject = null;
+        props.webviewObject = null;
+        props.isCreated = false;
+      }
+    });
   } catch (error) {
-
-    // Print error
-    console.error('ext.windows.onClosed', JSON.stringify(error))
-
+    console.error('ext.windows.onClosed', JSON.stringify(error));
   }
-})
+});
