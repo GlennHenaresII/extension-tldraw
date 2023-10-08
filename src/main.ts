@@ -1,8 +1,8 @@
 class TLDrawInstance {
   constructor(
-    public windowObject: ext.windows.Window | null,
-    public tabObject: ext.tabs.Tab | null,
-    public webviewObject: ext.webviews.Webview | null,
+    public window: ext.windows.Window | null,
+    public tab: ext.tabs.Tab | null,
+    public webview: ext.webviews.Webview | null,
     public isCreated: boolean
   ) { }
 }
@@ -83,9 +83,9 @@ ext.runtime.onExtensionClick.addListener(async () => {
 ext.tabs.onClicked.addListener(async (event) => {
   try {
     TLDrawInstances.forEach(async (props) => {
-      if (props.tabObject && props.tabObject.id === event.id) {
-        await ext.windows.restore(props.windowObject!.id);
-        await ext.windows.focus(props.windowObject!.id);
+      if (props.tab && props.tab.id === event.id) {
+        await ext.windows.restore(props.window!.id);
+        await ext.windows.focus(props.window!.id);
       }
     });
   } catch (error) {
@@ -97,13 +97,13 @@ ext.tabs.onClicked.addListener(async (event) => {
 ext.tabs.onClickedClose.addListener(async (event) => {
   try {
     TLDrawInstances.forEach(async (props) => {
-      if (props.tabObject && props.tabObject.id === event.id) {
-        await ext.tabs.remove(props.tabObject.id);
-        await ext.windows.remove(props.windowObject!.id);
-        await ext.webviews.remove(props.webviewObject!.id);
-        props.tabObject = null;
-        props.windowObject = null;
-        props.webviewObject = null;
+      if (props.tab && props.tab.id === event.id) {
+        await ext.tabs.remove(props.tab.id);
+        await ext.windows.remove(props.window!.id);
+        await ext.webviews.remove(props.webview!.id);
+        props.tab = null;
+        props.window = null;
+        props.webview = null;
         props.isCreated = false;
       }
     });
@@ -116,12 +116,12 @@ ext.tabs.onClickedClose.addListener(async (event) => {
 ext.windows.onClosed.addListener(async (event) => {
   try {
     TLDrawInstances.forEach(async (props) => {
-      if (props.windowObject && props.windowObject.id === event.id) {
-        await ext.tabs.remove(props.tabObject!.id);
-        await ext.webviews.remove(props.webviewObject!.id);
-        props.tabObject = null;
-        props.windowObject = null;
-        props.webviewObject = null;
+      if (props.window && props.window.id === event.id) {
+        await ext.tabs.remove(props.tab!.id);
+        await ext.webviews.remove(props.webview!.id);
+        props.tab = null;
+        props.window = null;
+        props.webview = null;
         props.isCreated = false;
       }
     });
