@@ -2,7 +2,7 @@
 
 1. Download https://github.com/GlennHenaresII/extension-tldraw
 
-2. Run npm i download dependencies
+2. Run npm install to download dependencies
 
 3. Run npm build to build the extension
 
